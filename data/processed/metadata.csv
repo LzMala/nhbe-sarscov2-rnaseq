@@ -1,0 +1,7 @@
+sample,geo,condition,cell_type,series
+Series1_NHBE_Mock_1,GSM4432378,mock,NHBE,1
+Series1_NHBE_Mock_2,GSM4432379,mock,NHBE,1
+Series1_NHBE_Mock_3,GSM4432380,mock,NHBE,1
+Series1_NHBE_SARS-CoV-2_1,GSM4432381,infected,NHBE,1
+Series1_NHBE_SARS-CoV-2_2,GSM4432382,infected,NHBE,1
+Series1_NHBE_SARS-CoV-2_3,GSM4432383,infected,NHBE,1
