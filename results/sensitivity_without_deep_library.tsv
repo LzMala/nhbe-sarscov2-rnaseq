@@ -1,0 +1,13 @@
+gene	call_with_all_six	call_without_deep_library	log2FC_without_deep_library	padj_without_deep_library	comparison
+IFNB1	filtered_low_count	filtered_low_count			same
+IFIT1	fdr_only	not_significant	0.783	0.1671871403667765	changed
+IFIT2	not_significant	not_significant	-0.287	0.8297418641561237	same
+IFIT3	fdr_only	not_significant	0.72	0.06572585056708752	changed
+ISG15	not_significant	not_significant	0.704	0.6139155397286041	same
+MX1	up	up	2.409	1.5054227755811665e-20	same
+OAS1	up	up	1.606	1.49672368618383e-09	same
+RSAD2	not_significant	not_significant	-0.441	0.9214431556569121	same
+CXCL8	not_in_count_table	not_in_count_table			same
+IL6	up	up	2.985	1.5227349562108988e-16	same
+TNF	up	up	1.748	0.02445998761802125	same
+NFKBIA	fdr_only	fdr_only	0.934	1.4895276110946347e-10	same

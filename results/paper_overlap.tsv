@@ -1,0 +1,33 @@
+gene	paper_claim	our_call	log2FC	padj	agreement
+CCL20	paper reports this gene induced in NHBE	up	3.143	2.3950114466001948e-77	agree, up
+CXCL1	paper reports this gene induced in NHBE	up	1.416	9.9945266508449e-38	agree, up
+IL1B	paper reports this gene induced in NHBE	up	1.061	4.981933686176774e-24	agree, up
+IL6	paper reports this gene induced in NHBE	up	2.928	2.877476603668486e-25	agree, up
+CXCL3	paper reports this gene induced in NHBE	up	2.23	1.2428930585892925e-15	agree, up
+CXCL5	paper reports this gene induced in NHBE	up	3.483	9.52142715124087e-30	agree, up
+CXCL6	paper reports this gene induced in NHBE	up	1.73	0.0033106045481972	agree, up
+CXCL2	paper reports this gene induced in NHBE	up	1.39	1.4156363263837783e-16	agree, up
+CXCL16	paper reports this gene induced in NHBE	fdr_only	0.513	0.0002955630801088	same direction, below the 2-fold line
+TNF	paper reports this gene induced in NHBE	up	1.804	0.0001276197252369	agree, up
+IRF9	paper reports this gene induced in NHBE	up	1.249	4.966811303956056e-26	agree, up
+ICAM1	paper reports this gene induced in NHBE	up	1.86	6.532334452788926e-41	agree, up
+IFNB1	paper reports type I or III interferon undetectable in NHBE	filtered_low_count			agree, too rare to test
+IFNL1	paper reports type I or III interferon undetectable in NHBE	filtered_low_count			agree, too rare to test
+IFNL2	paper reports type I or III interferon undetectable in NHBE	filtered_low_count			agree, too rare to test
+IFNL3	paper reports type I or III interferon undetectable in NHBE	filtered_low_count			agree, too rare to test
+SAA2	in our top 20, not one of the names in the NHBE paragraph	up	2.421	7.436295075427966e-76	our result, paper did not highlight this name in the NHBE text
+SAA1	in our top 20, not one of the names in the NHBE paragraph	up	2.221	4.124844918665918e-52	our result, paper did not highlight this name in the NHBE text
+IL36G	in our top 20, not one of the names in the NHBE paragraph	up	2.731	1.1749924032956312e-51	our result, paper did not highlight this name in the NHBE text
+SPRR2D	in our top 20, not one of the names in the NHBE paragraph	up	2.978	4.557310950776304e-49	our result, paper did not highlight this name in the NHBE text
+S100A8	in our top 20, not one of the names in the NHBE paragraph	up	1.868	1.717130874098252e-48	our result, paper did not highlight this name in the NHBE text
+INHBA	in our top 20, not one of the names in the NHBE paragraph	up	1.818	7.135882932303528e-47	our result, paper did not highlight this name in the NHBE text
+TNFAIP3	in our top 20, not one of the names in the NHBE paragraph	up	1.61	7.415354247170855e-47	our result, paper did not highlight this name in the NHBE text
+CFB	in our top 20, not one of the names in the NHBE paragraph	up	1.854	6.532334452788926e-41	our result, paper did not highlight this name in the NHBE text
+KRT6B	in our top 20, not one of the names in the NHBE paragraph	up	1.547	6.917342464428468e-41	our result, paper did not highlight this name in the NHBE text
+C3	in our top 20, not one of the names in the NHBE paragraph	up	1.508	1.2048551639833112e-40	our result, paper did not highlight this name in the NHBE text
+TNIP1	in our top 20, not one of the names in the NHBE paragraph	up	1.263	8.4559042283191e-40	our result, paper did not highlight this name in the NHBE text
+MX1	in our top 20, not one of the names in the NHBE paragraph	up	2.509	3.495590694140633e-34	our result, paper did not highlight this name in the NHBE text
+SOD2	in our top 20, not one of the names in the NHBE paragraph	up	1.518	4.529287540114769e-34	our result, paper did not highlight this name in the NHBE text
+ZC3H12A	in our top 20, not one of the names in the NHBE paragraph	up	1.673	2.256429604291336e-31	our result, paper did not highlight this name in the NHBE text
+S100A9	in our top 20, not one of the names in the NHBE paragraph	up	1.106	1.1951887127633584e-30	our result, paper did not highlight this name in the NHBE text
+C15orf48	in our top 20, not one of the names in the NHBE paragraph	up	1.235	3.091090085687436e-28	our result, paper did not highlight this name in the NHBE text

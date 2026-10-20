@@ -1,0 +1,8 @@
+metric	value
+genes_tested	12291.0
+padj_cutoff	0.05
+log2fc_cutoff	1.0
+genes_up	95.0
+genes_down	16.0
+genes_fdr_only	314.0
+genes_significant_both_cuts	111.0

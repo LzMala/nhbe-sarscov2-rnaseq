@@ -1,0 +1,6 @@
+metric	value
+total_genes	21797
+zero_genes	5437
+min_count	10
+min_samples	3
+genes_retained	12291

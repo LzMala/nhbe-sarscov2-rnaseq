@@ -1,0 +1,3 @@
+group	fdr_only	filtered_low_count	not_in_count_table	not_significant	up
+inflammatory	1	0	1	0	2
+type_I_isg	2	1	0	3	2

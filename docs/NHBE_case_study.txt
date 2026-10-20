@@ -1,0 +1,901 @@
+NHBE SARS-CoV-2 RNA-seq: a study note
+Reanalysis of public data. GSE147507, Series 1 only.
+Blanco-Melo et al., Cell 2020 (PMID 32416070).
+
+Each section below keeps the biology. Under it, the lines from the script are copied, and each line is read in ordinary language. The lines are the ones that make the decision. Lines that only set a font size, a title, or a dashed grid are left out. Those lines draw the picture. They do not change the result.
+
+A few marks show up in every script.
+
+  NAME = something
+      Stores that something under a short name, so a later line can use it.
+
+  "words inside quotes"
+      Text. A sample name, a gene name, or a file address. Nothing is calculated.
+
+  ["one", "two", "three"]
+      A written list. The order is the order the computer will follow.
+
+  # words after a hash
+      A note for a person. The computer skips that line.
+
+
+THE QUESTION
+
+Airway cells meet viruses first. The cells in this project are primary human bronchial epithelial cells, shortened to NHBE. Primary means they came from a person's airway, not from a cancer cell line that has been growing in a lab for years.
+
+The question is: 24 hours after SARS-CoV-2, which genes are higher or lower than in cells that got no virus, and did the cell's virus-alarm system actually turn on?
+
+You did not infect these cells. Blanco-Melo and colleagues did, and they published the counts. Your project is a reanalysis of one small piece of that experiment.
+
+The question is written into the top of the test script, scripts/03_de.py, as a note the computer skips:
+
+  """
+  Tests which genes change in primary NHBE cells after SARS-CoV-2 versus mock.
+  PyDESeq2, design ~ condition, mock as the reference. A positive log2 fold
+  change means higher after infection.
+  """
+
+  The three quotes open and close a short description. It tells a reader the comparison before any number is calculated. "Mock as the reference" means no-virus is the baseline. "Positive log2 fold change" means the gene went up after infection. The test itself is written later, in Week 4.
+
+
+WHERE THE TABLE COMES FROM
+
+The counts are a public file on the GEO website. The script that fetches it is scripts/00_download.py.
+
+  URL = ( "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE147nnn/"
+          "GSE147507/suppl/GSE147507_RawReadCounts_Human.tsv.gz")
+
+  The address of the authors' human count table. The parentheses let a long address sit on two lines. It is still one address. The file name ends in the authors' table, GSE147507_RawReadCounts_Human.tsv.gz.
+
+  OUT = "data/raw/GSE147507_RawReadCounts_Human.tsv.gz"
+  LOG = "data/raw/DOWNLOAD_LOG.txt"
+
+  OUT is where the table will be saved, inside a folder called data/raw. LOG is a small receipt that will sit next to it.
+
+  os.makedirs("data/raw", exist_ok=True)
+
+  Makes the folder data/raw. exist_ok=True means: if the folder is already there, keep going.
+
+  urllib.request.urlretrieve(URL, OUT)
+
+  Downloads the file at URL and saves it at OUT. This is the step that copies the public table onto your computer.
+
+  with open(OUT, "rb") as f:
+      file_bytes = f.read()
+
+  Opens the saved file and reads every byte. "rb" means read it as raw file contents, which is what a fingerprint needs.
+
+  fingerprint = hashlib.sha256(file_bytes).hexdigest()
+  size = len(file_bytes)
+  timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+  fingerprint is a long code from the file contents. Change one byte and the code changes, so a later reader can check they have the same file you had. size is how many bytes the file is. timestamp is the download time in UTC, so the clock zone is explicit.
+
+  The next lines write url, time, path, bytes, and sha256 into DOWNLOAD_LOG.txt. That receipt is the record of which file entered the project.
+
+
+WHAT THE CELLS DID
+
+Each sample is a separate dish of cells.
+
+  3 dishes    No virus. These are the mock samples.
+  3 dishes    SARS-CoV-2, strain USA-WA1/2020, at a dose of 2 infectious particles per cell, collected 24 hours later.
+
+Why three, not one? One dish cannot answer the question. If that dish looks different, the cause might be the virus, or it might be that one dish. A second dish helps, but one odd dish can still dominate. Three is the smallest number that lets you see whether the dishes agree. It is not a magic number. It is the number this experiment already had, and it is the usual minimum for this kind of study. More dishes would make the result firmer. Three is enough to do the test, and not enough to be very sure about small changes.
+
+They measured messenger RNA, the working copies of genes. More messenger RNA usually means the cell is using that gene more. The measurement is a count: how many reads landed on that gene. The table has 21,797 genes and 6 dishes.
+
+The three-and-three choice is written in scripts/01_subset_and_metadata.py. It is typed by hand. The computer does not decide how many dishes there are.
+
+  SAMPLES = [
+      "Series1_NHBE_Mock_1",
+      "Series1_NHBE_Mock_2",
+      "Series1_NHBE_Mock_3",
+      "Series1_NHBE_SARS-CoV-2_1",
+      "Series1_NHBE_SARS-CoV-2_2",
+      "Series1_NHBE_SARS-CoV-2_3",
+  ]
+
+  Six names, in a fixed order. The first three are the no-virus dishes. The last three are the virus dishes. These are the column names in the authors' table. Series1 and NHBE are in the name so a later column from another experiment cannot sneak in by accident.
+
+  CONDITIONS = ["mock", "mock", "mock", "infected", "infected", "infected"]
+
+  The group label for those six names, in the same order. The word mock is written three times because there are three no-virus dishes. The word infected is written three times because there are three virus dishes. Position 1 in SAMPLES goes with position 1 in CONDITIONS. Nothing here counts the dishes. You are stating the design.
+
+  GEO_IDS = [
+      "GSM4432378",
+      "GSM4432379",
+      "GSM4432380",
+      "GSM4432381",
+      "GSM4432382",
+      "GSM4432383",
+  ]
+
+  The public ID for each dish, again in the same order. GSM4432378 is Mock 1. GSM4432383 is the third infected dish. A reader can look that ID up on GEO without trusting the short name alone.
+
+
+WHY ONLY THESE SIX DISHES
+
+The full data set has many other cells: cancer cell lines, flu, and a later NHBE experiment with interferon and flu. Those answer different questions. You kept Series 1 only, so the only planned difference between the groups is SARS-CoV-2 versus no virus.
+
+The sample sheet metadata.csv exists so nobody has to guess which column is which. Each row says the sample name, the public ID, and whether it is mock or infected.
+
+Still in scripts/01_subset_and_metadata.py.
+
+  COUNT_FILE = "data/raw/GSE147507_RawReadCounts_Human.tsv.gz"
+  counts = pd.read_csv(COUNT_FILE, sep="\t", index_col=0)
+
+  Opens the authors' full table. sep="\t" means the columns are separated by tabs. index_col=0 means the first column, the gene name, is the row label. It is the name of the gene, so it stays out of the arithmetic.
+
+  missing = [s for s in SAMPLES if s not in counts.columns]
+  if missing:
+      print(f"\nError: Missing expected samples: {missing}")
+      print(f"Available columns: {list(counts.columns)}")
+      raise SystemExit(1)
+
+  Walks through the six names. Any name that is absent from the table is collected in missing. If that list has anything in it, the script prints the missing names, prints the column names that do exist, and stops. It will not guess a nearby column and continue.
+
+  subset_counts = counts[SAMPLES]
+
+  Keeps the six named columns and drops every other experiment. After this line the working table is 21,797 genes by 6 dishes.
+
+  print(subset_counts.sum(axis=0))
+
+  Adds each column from top to bottom. axis=0 means "down the column." The six numbers are the library sizes, the total reads in each dish. This is a first look, before any gene is tested.
+
+  zero_genes = (subset_counts.sum(axis=1) == 0).sum()
+
+  Adds each row from left to right. axis=1 means "across the six dishes." == 0 asks whether that gene's total is zero. The last .sum() counts how many genes are zero in every dish. Those genes are present as names and absent as signal.
+
+  subset_counts.to_csv(OUT_COUNTS, sep="\t", compression="gzip")
+
+  Saves the six-dish table to data/processed/nhbe_series1_counts.tsv.gz. Later scripts read this file. They do not go back to the full experiment.
+
+  metadata = pd.DataFrame({
+      "sample_id": SAMPLES,
+      "geo_accession": GEO_IDS,
+      "condition": CONDITIONS,
+      "cell_type": ["NHBE"] * 6,
+      "series": [1] * 6,
+  })
+  metadata.to_csv(OUT_META, index=False)
+
+  Builds the sample sheet. Each list becomes a column, and the lists are lined up by position, so row 1 is Mock 1, GSM4432378, mock, NHBE, series 1. ["NHBE"] * 6 writes NHBE six times. [1] * 6 writes the series number six times. index=False means the saved file has the five named columns, with no extra numbered column. The sheet is data/processed/metadata.csv.
+
+
+TWO GENE PROGRAMS
+
+When a virus enters a cell, two conversations often start.
+
+The inflammation conversation. A protein called NF-kB turns on genes that call other immune cells and raise inflammation. In your list those genes are IL6, TNF, CXCL8, and NFKBIA. NFKBIA is a brake on NF-kB. The cell turns that brake on when NF-kB has been active, so a rise in NFKBIA is a sign the pathway ran, not a sign it was off.
+
+The interferon conversation. Type I interferon, especially IFN-beta (the gene IFNB1), is the cell's virus alarm. That alarm turns on antiviral genes, often called interferon-stimulated genes: IFIT1, IFIT2, IFIT3, ISG15, MX1, OAS1, RSAD2.
+
+The published paper's claim for this kind of infection is: inflammation comes on strongly, and the interferon alarm is weak or uneven. Your Week 5 list was written to check that claim. The list has to be written before you look at the top genes. If you pick the genes after you see the winners, you can always build a flattering story.
+
+The list is typed at the top of scripts/04_gene_panel.py, before that script reads any result.
+
+  TYPE_I_ISG = ["IFNB1", "IFIT1", "IFIT2", "IFIT3", "ISG15", "MX1", "OAS1", "RSAD2"]
+  INFLAMMATORY = ["CXCL8", "IL6", "TNF", "NFKBIA"]
+
+  Two written lists. The first is the interferon alarm and the antiviral genes it is supposed to turn on. The second is the inflammation set. They are names, in quotes. The script does not search for "interesting" genes. It only scores these twelve.
+
+  The comment above them says the lists are fixed before looking at results, and that genes are not added after the plot. A comment does not enforce that. You do, by leaving the lists alone.
+
+
+WEEK 3, BEFORE ANY GENE TEST
+
+A count of 0 versus 2 can look like an infinite increase. Most of those genes are just rare. You kept a gene only if it had at least 10 counts in at least 3 samples. Three samples is one whole group, so the gene has to show up across mock or across infected, not in a single dish. That left 12,291 genes. The other 9,506, including 5,437 genes that were zero in every dish, never entered the test.
+
+One infected dish had about 29 million reads. The others had about 10 to 17 million. A deeper dish looks higher for every gene if you compare raw counts. For the pictures, each count was turned into counts per million:
+
+  counts per million = count / total reads in that dish x 1,000,000
+
+Then you took log2(counts per million + 1). The log makes a doubling equal to +1 and a halving equal to -1. The "+ 1" only stops a zero from breaking the log. This picture scale was not the statistical test. The test came in Week 4.
+
+The pictures answered a simpler question: are the six dishes usable?
+
+  The samples still look alike overall. The lowest correlation is 0.981, close to 1.
+  The main pattern in the data, 63% of the plotted variation, separates the three mock dishes from the three infected dishes.
+  The deep dish sits with the other infected dishes.
+
+So the virus, not a broken sample, is the main difference. All six dishes stay.
+
+The script is scripts/02_qc.py. The two numbers in the filter are named at the top so they are easy to see.
+
+  MIN_COUNT = 10
+  MIN_SAMPLES = 3
+
+  10 is the count a gene must reach. 3 is how many dishes it must reach that count in. Changing the rule means changing these two lines and saying so.
+
+  counts = pd.read_csv(COUNTS_PATH, sep="\t", index_col=0)
+  meta = pd.read_csv(META_PATH)
+
+  Reads the six-dish count table and the sample sheet.
+
+  if list(counts.columns) != list(meta["sample_id"]):
+      print("Error: Count table columns do not match metadata sample_id order!")
+      raise SystemExit(1)
+
+  Compares the column names in the count table with the sample_id column in the sheet, in order. If they differ, the script stops. A later line that paints dish 4 red must be painting the dish that the sheet calls infected.
+
+  colors = ["#4A90E2" if cond == "mock" else "#D0021B" for cond in meta["condition"]]
+
+  Builds a color for each dish by walking down the condition column. Mock gets blue, #4A90E2. Infected gets red, #D0021B. The same two colors are used on the later pictures.
+
+Library size, Step 1.
+
+  library_sizes = counts.sum(axis=0)
+
+  Adds every gene in a dish. One number per dish. This is the total reads, the sequencing depth.
+
+  plt.bar(labels, library_sizes / 1e6, color=colors, edgecolor="black", alpha=0.85)
+
+  Draws one bar per dish. Dividing by 1e6 turns the raw total into millions, so the axis reads "about 10" instead of "about 10000000." The colors come from the condition list above. The picture is figures/01_library_sizes.png. The deep infected dish is the tall bar. The script records it. It does not remove it.
+
+The filter, Step 2.
+
+  keep_mask = (counts >= MIN_COUNT).sum(axis=1) >= MIN_SAMPLES
+  counts_filtered = counts.loc[keep_mask]
+
+  counts >= 10 asks, for every gene in every dish, whether the count is at least 10. That makes a table of yes and no.
+  .sum(axis=1) counts the yeses across the six dishes, so each gene gets a number from 0 to 6.
+  >= 3 keeps the gene when that number is at least 3. Three is one whole group, so the gene has to show up across mock or across infected.
+  counts.loc[keep_mask] is the shorter table. In this run it has 12,291 genes.
+  The script then counts genes that are zero in every dish and writes the totals to results/qc_gene_filter.tsv. The genes that fail the rule stay in the raw file. They are absent from the pictures below and from the Week 4 test.
+
+The picture scale, Step 3.
+
+  cpm = counts_filtered.div(library_sizes, axis=1) * 1e6
+  log_cpm = np.log2(cpm + 1)
+
+  .div(library_sizes, axis=1) divides every count by the total of its own dish. axis=1 means "use the matching dish." Multiplying by 1e6, one million, turns that fraction into counts per million.
+  np.log2(cpm + 1) is the log. A doubling becomes about +1. Adding 1 lets a count of zero go through the log. These two lines are for the pictures. Week 4 uses the raw counts and does this scaling inside the model.
+
+Do the dishes agree, Step 4.
+
+  correlation = log_cpm.corr()
+
+  Compares every dish with every other dish on the log counts-per-million scale. A value of 1 would mean the same pattern. The script writes the grid to results/qc_sample_correlation.tsv and finds the lowest off-diagonal value. In this run that lowest value is 0.981.
+  The picture figures/02_sample_correlation.png draws that grid from 0.90 to 1.00, so a correlation of 0.98 still looks dark. A scale that started at 0 would paint every square the same color and hide the small gaps.
+
+The main pattern, Step 5.
+
+  gene_variance = log_cpm.var(axis=1)
+  top_500_genes = gene_variance.sort_values(ascending=False).head(500).index
+  samples_for_pca = log_cpm.loc[top_500_genes].T
+
+  var(axis=1) measures how much each gene jumps around across the six dishes.
+  sort_values(ascending=False) puts the jumpier genes first. head(500) keeps the first 500. Quiet genes look the same in every dish, so they do not help you see groups.
+  .T flips the table so each dish is one row. The picture method wants one row per dish.
+
+  pca = PCA(n_components=2, random_state=0)
+  pca_coords = pca.fit_transform(samples_for_pca)
+  var_pc1 = pca.explained_variance_ratio_[0] * 100
+  var_pc2 = pca.explained_variance_ratio_[1] * 100
+
+  Asks for the two strongest patterns in those 500 genes. random_state=0 makes the picture come out the same way if you run it again.
+  explained_variance_ratio_ is the share of the pattern sitting on each axis. Times 100 turns the share into a percent. This run put about 63.2% on the first axis and about 15.7% on the second.
+  The scatter plot uses the same blue and red as the bar chart and saves figures/03_pca.png.
+
+Did the groups separate, Step 6.
+
+  mock_pc1 = pc1[meta["condition"] == "mock"]
+  inf_pc1 = pc1[meta["condition"] == "infected"]
+  is_separated = (mock_pc1.max() < inf_pc1.min()) or (inf_pc1.max() < mock_pc1.min())
+
+  Pulls out the left-right positions of the three mock dishes, then the three infected dishes.
+  The long line asks whether every mock dish sits to the left of every infected dish, or every infected dish sits to the left of every mock dish. Either way, the two groups do not overlap on that axis.
+  If that is true, the script prints PASS and says all six dishes are suitable. It does not delete a dish. The deep dish stayed because it sat with the other infected dishes.
+
+
+WEEK 4, THE TEST
+
+For each of the 12,291 genes, the test asks one question. After the dishes are put on the same scale, is this gene higher with the virus, or lower?
+
+1. How big is the change?
+
+Take one gene. Suppose its level is about 100 in the no-virus dishes and about 200 in the virus dishes. The ratio is 200 / 100 = 2. The gene is twice as high. That is a 2-fold rise.
+
+The table stores the change as a log2 number, so a doubling and a halving are the same size with opposite signs.
+
+  200 compared with 100 is twice as high. log2(2) = 1. The table writes +1.
+  50 compared with 100 is half as high. log2(0.5) = -1. The table writes -1.
+
+A plus means higher after infection. A minus means lower. The no-virus dishes are the baseline.
+
+2. How much do the dishes wobble?
+
+The three no-virus dishes never give the exact same count. The three virus dishes never do either. So for every gene the program writes two numbers.
+
+  The change itself. This is the log2 fold change.
+  How much that estimate wobbles from dish to dish. This is the standard error.
+
+A gene with huge counts is steady, so its standard error is small. A rare gene bounces from dish to dish, so its standard error is wide. A wide standard error means the change is hard to trust.
+
+The test then asks how big the change is next to that wobble:
+
+  statistic = log2 fold change / standard error
+
+A statistic near 0 means the change is small next to the wobble. A statistic past about 2 means the change is large next to the wobble.
+
+3. Could the wobble alone have done this?
+
+The p-value is that question turned into a chance. If the virus truly did nothing to this one gene, how often would dish-to-dish wobble still produce a statistic this large? A p-value of 0.05 means about 5 times in 100.
+
+That bar is fair for one gene. You asked it 12,291 times. If the virus had changed none of them, about 5% of the tests would still fall under 0.05 by luck:
+
+  12,291 x 0.05 = about 615 genes
+
+Those 615 would look changed. They would be luck. A raw p-value of 0.05 is too loose once the question is asked for a whole genome.
+
+Benjamini-Hochberg uses a stricter promise. Among the genes you declare changed, about 5 in 100 are expected to be luck. That rate is the false discovery rate. In the table this stricter number is the column padj, the adjusted p-value.
+
+Here is the same rule on 5 genes, so the arithmetic is visible. In the real test the list has 12,291 genes. The steps match.
+
+Sort the raw p-values from smallest to largest:
+
+  0.001, 0.01, 0.02, 0.04, 0.20
+
+For the gene in position k, draw the line (k / 5) x 0.05:
+
+  gene 1: 0.001 is under its line, 0.01
+  gene 2: 0.01 is under its line, 0.02
+  gene 3: 0.02 is under its line, 0.03
+  gene 4: 0.04 sits on its line, 0.04
+  gene 5: 0.20 is over its line, 0.05
+
+Gene 4 is the last one still on its line. Genes 1 through 4 are kept. Gene 5 is left out.
+
+The adjusted p-value is about: raw p-value x (number of genes / position in the sorted list). For gene 2 that is 0.01 x (5 / 2) = 0.025. The list is then tidied so an adjusted p-value never gets smaller as you move down. In the real table, a gene passes this part when its adjusted p-value is below 0.05.
+
+4. Is the change large enough to care about?
+
+A change can be steady and still tiny. A gene that goes from 1,000 to 1,100 is only about 10% higher. If all three dishes agree, the adjusted p-value can be very small. The second rule asks for a log2 fold change of at least 1, which is a doubling or a halving. That rule is a choice, made so the headline list is the larger changes. Both lists are saved, so the effect of the choice stays visible.
+
+  Tested                                              12,291
+  Adjusted p below 0.05, and at least 2-fold         95 up, 16 down
+  Adjusted p below 0.05, but smaller than 2-fold     314
+
+The 314 are kept in deseq2_results_fdr05.tsv and left out of the headline list. The full table keeps every tested gene, including the ones that did not change. A project that shows only the winners hides how the cutoff was used.
+
+The loudest genes by adjusted p-value are inflammatory or stress genes, including CCL20, SAA1, SAA2, IL36G, and S100A8. That is a clue. It is not yet the interferon check, because those names were not on the list you wrote beforehand.
+
+The script is scripts/03_de.py. The Benjamini-Hochberg steps above are done inside PyDESeq2. The script does not type that formula. It reads the padj column that PyDESeq2 fills.
+
+The two cutoffs, named at the top:
+
+  PADJ_CUTOFF = 0.05
+  LFC_CUTOFF = 1.0
+
+  0.05 is the false-discovery line. 1.0 is the log2 fold-change line, which is a 2-fold change. Both numbers are written once so the labels and the saved summary use the same cuts.
+
+The same filter as Week 3, then the shape the model wants.
+
+  keep_mask = (counts >= MIN_COUNT).sum(axis=1) >= MIN_SAMPLES
+  counts_filtered = counts.loc[keep_mask]
+
+  Same rule as Week 3: at least 10 counts in at least 3 dishes. The test sees 12,291 genes.
+
+  counts_for_model = counts_filtered.T.loc[meta["sample_id"]]
+  counts_for_model = counts_for_model.astype(int)
+
+  .T flips the table so each dish is a row and each gene is a column. PyDESeq2 wants that shape. .loc[meta["sample_id"]] puts the dishes in the same order as the sample sheet. astype(int) makes every count a whole number. A count of 10.0 is fine. A count of 10.5 would be a sign the table is no longer raw counts, and the script stops before this line if it sees a fraction or a negative.
+
+  model_meta = meta.set_index("sample_id")[["condition"]]
+
+  Makes a small sheet with the dish name as the row label and one column, condition. The model is only allowed to see mock versus infected. Cell type and series are the same for all six rows, so they are left out.
+
+Fitting the model.
+
+  dds = DeseqDataSet(
+      counts=counts_for_model,
+      metadata=model_meta,
+      design="~condition",
+      refit_cooks=False,
+      n_cpus=1,
+      quiet=True,
+  )
+  dds.deseq2()
+
+  counts= and metadata= hand over the two tables.
+  design="~condition" means the counts depend on the condition column. The tilde is the model's way of saying "depends on." There is no other grouping in the design.
+  refit_cooks=False means a wild count in one dish is flagged and left as it is. With three dishes, replacing that count would invent a value. n_cpus=1 runs the work on one processor. quiet=True keeps the progress chatter down.
+  dds.deseq2() does the fitting: it puts the dishes on a common scale and estimates how noisy each gene is. That is the step that takes a few minutes.
+
+The comparison.
+
+  stats = DeseqStats(
+      dds,
+      contrast=["condition", "infected", "mock"],
+      n_cpus=1,
+      quiet=True,
+  )
+  stats.summary()
+  results = stats.results_df.copy()
+
+  contrast lists the column, then the group you care about, then the reference. The order is infected, then mock. A positive log2 fold change means higher in infected.
+  summary() runs the Wald test. For each gene the statistic is the log2 fold change divided by its standard error, and the raw p-value and the adjusted p-value are filled in.
+  results_df is the results table. .copy() takes a copy so later labels are added on your copy.
+
+  results = results.rename(columns={"log2FoldChange": "log2FC"})
+  results = results[["baseMean", "log2FC", "lfcSE", "stat", "pvalue", "padj"]]
+
+  Renames the fold-change column to the shorter name log2FC.
+  Keeps six columns. baseMean is the typical level of the gene. log2FC is the estimated change. lfcSE is the standard error, the uncertainty. stat is log2FC divided by lfcSE. pvalue is the raw p-value. padj is the Benjamini-Hochberg adjusted p-value.
+
+The labels. The order of these lines matters.
+
+  results["call"] = "not_significant"
+  results.loc[results["padj"] < PADJ_CUTOFF, "call"] = "fdr_only"
+  results.loc[(results["padj"] < PADJ_CUTOFF) & (results["log2FC"] >= LFC_CUTOFF), "call"] = "up"
+  results.loc[(results["padj"] < PADJ_CUTOFF) & (results["log2FC"] <= -LFC_CUTOFF), "call"] = "down"
+  results.loc[results["padj"].isna(), "call"] = "no_padj"
+
+  First every gene is labeled not_significant.
+  Then any gene with adjusted p below 0.05 is relabeled fdr_only.
+  Then, among those, a gene whose log2FC is at least +1 is relabeled up. A gene whose log2FC is at most -1 is relabeled down.
+  Writing up and down after fdr_only is what makes the headline stricter than the adjusted p alone. A gene that passes both cuts does not stay labeled fdr_only.
+  The & means both things have to be true.
+  The last line labels a gene no_padj when the adjusted p-value is missing. In this run that count was zero.
+
+The three tables.
+
+  results.to_csv(FULL_PATH, sep="\t")
+
+  Saves every tested gene, including the ones that did not change. File: results/deseq2_results_full.tsv.
+
+  significant = results[results["call"].isin(["up", "down"])].copy()
+  significant.to_csv(SIG_PATH, sep="\t")
+
+  Keeps the rows whose label is up or down. That is the 95 plus the 16. File: results/deseq2_results_significant.tsv.
+
+  fdr_only_table = results[results["padj"] < PADJ_CUTOFF].copy()
+  fdr_only_table.to_csv(LOOSE_PATH, sep="\t")
+
+  Keeps every gene with adjusted p below 0.05, whether or not the fold change reached 2. That file contains the 95, the 16, and the 314. File: results/deseq2_results_fdr05.tsv.
+
+  A short summary table counts those labels and saves results/deseq2_summary.tsv, including the two cutoff numbers, so the cuts sit next to the counts.
+
+
+WEEK 5, THE LIST YOU WROTE FIRST
+
+  IFNB1              About 1 count per mock dish and under 1 after infection. Too rare to test. The cell is not producing a measurable IFN-beta message at this hour.
+  MX1, OAS1          Clearly up, more than 2-fold.
+  IFIT1, IFIT3       Adjusted p-value passes, fold change stays under 2.
+  IFIT2, ISG15, RSAD2   Do not pass.
+  IL6, TNF           Clearly up, more than 2-fold.
+  NFKBIA             Adjusted p-value passes, fold change just under 2. The NF-kB pathway looks active.
+  CXCL8              Not in this count file at all, including under its older name IL8. You leave it blank. You do not swap in a different chemokine after seeing the results.
+
+The sentence you can defend: in these six dishes, IL6 and TNF are clearly induced, and the interferon genes are uneven. IFN-beta itself is not measurably expressed. A few antiviral genes, especially MX1 and OAS1, do rise. This matches the paper's broad claim in this one cell type: inflammation is the louder program. It does not prove the response is weak compared with flu, because the flu dishes were a different experiment and you left them out.
+
+The scoring is scripts/04_gene_panel.py. The two lists at the top were shown in the gene-program section. The script then reads the Week 4 table and the counts.
+
+  de = pd.read_csv(DE_PATH, sep="\t").set_index("gene")
+  counts = pd.read_csv(COUNTS_PATH, sep="\t", index_col=0)
+  meta = pd.read_csv(META_PATH)
+
+  de is the full Week 4 table, with the gene name as the row label, so a later line can ask for a gene by name. counts is the six-dish table, before the rare genes were removed, so a gene that failed the filter can still be found here. meta is the sample sheet.
+
+  mock_samples = meta.loc[meta["condition"] == "mock", "sample_id"]
+  infected_samples = meta.loc[meta["condition"] == "infected", "sample_id"]
+
+  From the sample sheet, collect the three dish names whose condition is mock, and the three whose condition is infected. The averages below use these names. They do not assume "the first three columns are mock" a second time. They trust the sheet.
+
+  panel_genes = TYPE_I_ISG + INFLAMMATORY
+  groups = ["type_I_isg"] * len(TYPE_I_ISG) + ["inflammatory"] * len(INFLAMMATORY)
+
+  Joins the two lists into one list of twelve names. The groups line builds a matching label: type_I_isg eight times, then inflammatory four times. len(TYPE_I_ISG) is 8 because that list has eight names.
+
+Then one pass through the twelve names. For each gene the script asks three questions, in this order.
+
+  in_counts = gene in counts.index
+  in_model = gene in de.index
+
+  in_counts is yes when the name exists in the authors' table. in_model is yes when the gene was actually tested in Week 4.
+
+  if in_counts:
+      mean_mock = counts.loc[gene, mock_samples].mean()
+      mean_infected = counts.loc[gene, infected_samples].mean()
+
+  If the name is in the table, average its three mock counts, and average its three infected counts. For IFNB1 those averages are about 1 and under 1. That is how the note can say the message is barely there, even though the gene never entered the test.
+
+  if not in_counts:
+      call = "not_in_count_table"
+  elif not in_model:
+      call = "filtered_low_count"
+  else:
+      call = de.loc[gene, "call"]
+      log2fc = de.loc[gene, "log2FC"]
+      padj = de.loc[gene, "padj"]
+
+  First question: is the name missing from the count file? CXCL8 takes this path. The call is not_in_count_table. There is no fold change to copy.
+  Second question: is the name in the file, but missing from the Week 4 results? That means it failed the 10-in-3 rule. IFNB1 takes this path. The call is filtered_low_count.
+  Otherwise the gene was tested, so copy the Week 4 label, the log2 fold change, and the adjusted p-value. MX1, OAS1, IL6, and TNF arrive here already labeled up.
+
+  The twelve rows are saved as results/gene_panel.tsv. A second small table counts, in each group, how many are up, how many are fdr_only, how many failed to pass, how many were too rare, and how many were absent. That count is results/gene_panel_summary.tsv.
+
+The bar chart only draws genes that were tested.
+
+  tested = panel[panel["in_model"]].copy()
+  plt.barh(tested["gene"], tested["log2FC"], color=bar_colors, edgecolor="black")
+  plt.axvline(0, color="black", linewidth=0.8)
+  plt.axvline(1, color="gray", linestyle="--", linewidth=1)
+  plt.axvline(-1, color="gray", linestyle="--", linewidth=1)
+
+  tested drops any gene with no fold change. IFNB1 and CXCL8 are in that drop, and the script prints their names so their absence is visible.
+  The bars are the log2 fold changes. The black line is "no change." The gray dashed lines are the 2-fold cuts, +1 and -1.
+  On this one picture, blue means the interferon list and red means the inflammation list. The legend on the figure says so. The same two paint codes are used for mock and infected on the other pictures, so this picture carries that legend to say which meaning is in use.
+
+
+WHAT YOU MUST NOT SAY
+
+These are cells in a dish, 24 hours after a chosen dose, with three dishes per group. They are not a human lung, not a patient, and not a new diagnostic marker. The counts were made by the original authors. You checked their table. You did not sequence the RNA yourself. A gene can change because the virus triggered it, or because the cell is stressed. One experiment cannot separate every cause.
+
+The tables exist so someone else can see the path: which six dishes, which genes were quiet enough to ignore, which genes passed which cutoff, and what happened to the 12 names you promised to check before you saw the winners.
+
+Those limits are written for a reader in LIMITATIONS.md. The scripts do not print them, because a limit is a statement about the experiment, kept beside the result. That file says the six dishes are cultured cells at 24 hours, the counts were made by the original authors, and no biomarker is claimed.
+
+
+WEEK 6, ARE THE CHANGED GENES A KNOWN GROUP?
+
+Week 5 looked at 12 genes you wrote down in advance. Week 6 looks at the whole winner list and asks a wider question. Do those winners belong to a process that already has a name?
+
+Biologists keep lists of genes that share a job. One list is "TNF-alpha signaling through NF-kB." Another is "interferon-alpha response." Another is "IL-6 signaling." Week 6 checks your 95 genes that at least doubled against those ready-made lists.
+
+1. The list test. Who is crowded inside the 95?
+
+There are 12,291 tested genes. 95 of them at least doubled. Take one ready-made list, the TNF-alpha list. Count how many of its members sit inside those 95. Then ask whether that is more than you would expect from a list of that size.
+
+A tiny example, so the counting is visible. These counts are an illustration. They are the shape of the test.
+
+  The class has 100 genes.
+  10 of them at least doubled. Those 10 are the winners.
+  A ready-made inflammation list has 10 members in the class of 100.
+  6 of those 10 members are inside the 10 winners.
+
+Six out of ten winners belong to a list that is only ten out of a hundred genes in the class. The winners are crowded with inflammation genes. That crowding is the whole finding. The adjusted p-value asks how often a crowd like that would appear by luck, after many lists have been checked. A tiny adjusted p-value means the crowd is hard to explain as luck.
+
+Your real list test, using the Hallmark collection:
+
+  TNF-alpha signaling through NF-kB is the most crowded. Its adjusted p-value is about 10 to the minus 26. Write a decimal point, then 26 places, and the 1 is in the last place. That is a very small chance of luck.
+  Inflammatory response and IL-6 signaling are crowded as well.
+  Interferon-gamma response is crowded.
+  Interferon-alpha response, the type I program from Week 5, is crowded too. Its adjusted p-value is about 10 to the minus 10. Still very small, and larger than the TNF-alpha value, so this group is behind TNF-alpha.
+
+2. The ranked test. What about genes that rose, but rose less than double?
+
+The list test ignores a gene that rose 1.5-fold. That gene failed the 2-fold rule in Week 4, and it can still be part of the interferon story. The ranked test lines up all 12,291 tested genes. The gene with the strongest rise is at the top. The gene with the strongest fall is at the bottom. It then asks whether the members of a ready-made list sit near the top together.
+
+On that ordered list, TNF-alpha signaling is again at the front. Interferon-alpha is near the front with it. The genes that rose less than double still lean toward interferon. The list test remains the one that says which group is the most crowded among the genes that actually doubled.
+
+Read together, the two tests say the same thing as the 12 names in Week 5. Inflammation, especially TNF-alpha through NF-kB, is the loudest named group. Interferon-alpha is present and sits behind it. The test matches your risen genes to lists that already have those names. It stops there. It cannot show that NF-kB was the cause.
+
+The script is scripts/05_pathways.py.
+
+  GENE_SETS = ["MSigDB_Hallmark_2020", "GO_Biological_Process_2023"]
+
+  The two collections of named groups. Hallmark is the short collection used in the bar chart. GO Biological Process is the larger collection of biological activities. Both are run. The written claim in this note follows Hallmark, because those group names are the ones a reader of the paper will recognize.
+
+The list test.
+
+  up_genes = de.loc[de["call"] == "up", "gene"].dropna().tolist()
+  background = de["gene"].dropna().tolist()
+
+  up_genes takes the gene column, keeps the rows labeled up, drops a blank name if one appears, and turns the result into a list. That list is the 95.
+  background is every tested gene, all 12,291. The test needs the background. "Are inflammation genes common in the 95?" only means something when you say "common compared with what?"
+
+  ora = gp.enrichr(
+      gene_list=up_genes,
+      gene_sets=GENE_SETS,
+      organism="human",
+      background=background,
+      outdir=None,
+      cutoff=1,
+  )
+
+  Sends the 95 names, the two collections, and the full tested list to Enrichr. organism="human" picks the human version of those groups. cutoff=1 means keep every group the tool returns, including weak ones, so the saved table is the whole answer and the cutoff can be applied while reading. outdir=None means the tool's own extra files are not written. The table you keep is results/pathway_ora.tsv, from the next lines, ora.results.
+
+The ranked test.
+
+  ranked = de.dropna(subset=["gene", "stat"]).copy()
+  ranked["abs_stat"] = ranked["stat"].abs()
+  ranked = ranked.sort_values("abs_stat", ascending=False).drop_duplicates("gene")
+  rank = ranked.set_index("gene")["stat"].sort_values(ascending=False)
+
+  Drops a row that has no gene name or no statistic.
+  abs_stat is the size of the statistic, ignoring the sign. Sorting by that size and then drop_duplicates("gene") keeps one row per gene, the row with the stronger statistic, if a name ever appeared twice.
+  The last line puts the genes in order of the signed statistic, largest rise first, largest fall last. A gene under the 2-fold line still has a place in this order. The saved rank file is results/pathway_rank.tsv.
+
+  gsea = gp.prerank(
+      rnk=rank,
+      gene_sets=GENE_SETS,
+      outdir=f"{RES_DIR}/gsea_prerank",
+      permutation_num=200,
+      seed=SEED,
+      threads=1,
+      min_size=15,
+      max_size=500,
+      no_plot=True,
+  )
+
+  Walks the ordered list and asks whether a named group clusters near the top.
+  permutation_num=200 shuffles the order 200 times. The point of the shuffles is to see how often a group looks this strong by luck. seed=0 makes those shuffles start from the same place if you rerun, so the result is repeatable. SEED was set to 0 at the top of the script.
+  min_size=15 skips a group with fewer than 15 genes in your tested list. max_size=500 skips a huge group that would match almost anything.
+  threads=1 runs it on one processor. no_plot=True skips the tool's own pictures. The table is saved as results/pathway_gsea.tsv.
+  On that ranked test, interferon-alpha sits near the top along with TNF-alpha signaling. The 2-fold list test still has TNF-alpha signaling as the strongest group. Both results are in the files. The sentence in this section uses the list test for "what is loudest" and uses the ranked test as the reason a weaker interferon signal is still visible.
+
+
+WEEK 7, FOUR PICTURES
+
+A reader should not have to open twenty plots. Four pictures carry the project. The depth bar, the correlation grid, and the Week 5 gene bar stay in the folder as support.
+
+  figures/03_pca.png
+      Do the dishes separate into mock and infected? Yes. Made in Week 3.
+
+  figures/05_volcano.png
+      Every tested gene is a dot. Left-right is the fold change. Up-down is how surprising that change is after the p-value correction. Dashed lines at -1 and 1 are the 2-fold cutoff. Red passed both cutoffs and went up. Gold passed the adjusted p-value only. Blue went down. Gray did not pass. The pre-specified names are written on the dots. MX1, OAS1, IL6, and TNF sit in the upper right. IFIT1, IFIT3, ISG15, and NFKBIA sit closer to the middle. IFNB1 and CXCL8 are not on the plot because they were not tested.
+
+  figures/06_heatmap.png
+      Rows are the top changed genes plus the pre-specified genes that were tested. Columns are the six dishes, mock then infected. Color is not the raw count. Each gene is scaled across the six dishes, so a gene with huge counts does not paint the whole row red just because it is abundant. Blue means lower than that gene's own average. Red means higher. The top genes are blue in mock and red after infection. The interferon rows are mixed, which is the point.
+
+  figures/07_pathways.png
+      The Hallmark groups from the list test. The bar length is how surprising the enrichment is. TNF-alpha through NF-kB is the longest bar. Interferon-alpha is on the chart and shorter.
+
+Three of the four pictures are drawn by scripts/06_figures.py. The fourth, the PCA, is already figures/03_pca.png from Week 3. The same twelve names are written again at the top of this script:
+
+  PANEL = ["IFNB1", "IFIT1", "IFIT2", "IFIT3", "ISG15", "MX1", "OAS1", "RSAD2", "CXCL8", "IL6", "TNF", "NFKBIA"]
+
+  The list to label. It matches Week 5. A gene on this list is labeled only if it was tested. Being on the list does not put an untested gene onto the plot.
+
+The volcano.
+
+  plot_de = de.dropna(subset=["log2FC", "padj"]).copy()
+  plot_de["minus_log10_padj"] = -np.log10(plot_de["padj"].clip(lower=1e-300))
+
+  Drops a gene that has no fold change or no adjusted p-value. Those genes have no position on this plot. IFNB1 and CXCL8 leave here, and the script prints that they were not labeled.
+  The new column is the height of the dot. A smaller adjusted p-value becomes a taller dot. The minus sign flips the log, because log10 of a small number is negative and the plot should point up for a stronger result. clip(lower=1e-300) keeps a value that is exactly zero from breaking the log. 1e-300 is a tiny stand-in, far below any real adjusted p-value in this table.
+
+  for call, color in [("not_significant", NS_COLOR), ("fdr_only", "#E6A817"), ("down", DOWN_COLOR), ("up", UP_COLOR)]:
+      part = plot_de[plot_de["call"] == call]
+      plt.scatter(part["log2FC"], part["minus_log10_padj"], s=12, c=color, alpha=0.75, linewidths=0)
+
+  Draws four layers of dots, one per label. Gray for not_significant. Gold, #E6A817, for fdr_only. Blue for down. Red for up. Left-right is log2FC. Up-down is the transformed adjusted p-value.
+
+  labeled = plot_de[plot_de["gene"].isin(PANEL)]
+
+  Keeps the dots whose gene name is on the twelve-name list. The following lines write those names next to the dots. A small table of nudges moves IFIT1, IFIT2, IFIT3, ISG15, RSAD2, TNF, and NFKBIA a few points sideways so the words do not sit on top of each other. The nudge changes where the word is drawn. It does not move the dot.
+
+  plt.axvline(1, color="gray", linestyle="--", linewidth=1)
+  plt.axvline(-1, color="gray", linestyle="--", linewidth=1)
+
+  Vertical dashed lines at +1 and -1, the 2-fold cuts. The picture is figures/05_volcano.png.
+
+The heatmap.
+
+  top = de[de["call"].isin(["up", "down"])].nsmallest(20, "padj")
+
+  Among genes labeled up or down, take the 20 with the smallest adjusted p-value.
+
+  for gene in list(top["gene"]) + PANEL:
+      if gene in counts.index and gene not in heat_genes and gene in set(de["gene"]):
+          heat_genes.append(gene)
+
+  Start a row list with those 20 names, then walk the twelve-name list. A name is added only when it is in the count table and in the Week 4 results, and only once. IFNB1 and CXCL8 fail that check, so they get no row.
+
+  sample_order = list(meta["sample_id"])
+  library_size = counts[sample_order].sum(axis=0)
+  log_cpm = np.log2(counts.loc[heat_genes, sample_order].div(library_size, axis=1) * 1_000_000 + 1)
+
+  sample_order follows the sample sheet, mock then infected, so the columns are grouped.
+  library_size is the total reads of each dish. The next line divides each count by its dish total, multiplies by one million, adds 1, and takes log2. 1_000_000 is the same million as 1e6. The underscores are only there so a person can read the number.
+
+  zscore = log_cpm.sub(log_cpm.mean(axis=1), axis=0).div(log_cpm.std(axis=1).replace(0, np.nan), axis=0)
+
+  For each gene, subtract that gene's own average across the six dishes, then divide by how spread out that gene is. axis=1 on the mean and the spread means "across the dishes." axis=0 on sub and div means "apply that gene's number to that gene's row."
+  After this, a row is colored against itself. A gene with a huge count is blue where it is low for itself and red where it is high for itself.
+  replace(0, np.nan) protects a gene that does not vary at all. Dividing by zero is avoided. The color scale on the picture is held between -2 and 2, blue to red, in figures/06_heatmap.png.
+
+The pathway bars.
+
+  hallmark = ora[ora["Gene_set"] == "MSigDB_Hallmark_2020"].sort_values("Adjusted P-value").head(10)
+  hallmark = hallmark.iloc[::-1]
+  scores = -np.log10(hallmark["Adjusted P-value"].clip(lower=1e-300))
+  plt.barh(hallmark["Term"], scores, color="#D0021B", edgecolor="black")
+
+  From the Week 6 list-test table, keep the Hallmark rows. Sort so the smallest adjusted p-value is first. head(10) keeps ten groups.
+  iloc[::-1] flips that list upside down. A horizontal bar chart draws the first name at the bottom, so the flip puts the strongest group at the top.
+  The bar length is the adjusted p-value on the minus-log10 scale. A tiny p-value becomes a long bar. The picture is figures/07_pathways.png.
+
+
+WEEK 8, DOES THIS MATCH THE PAPER?
+
+The paper's sentence for these cells is: type I and type III interferon are hard to detect, a few antiviral genes rise, and chemokines plus IL-6 and TNF rise strongly.
+
+The genes they name as induced in NHBE are CCL20, CXCL1, IL1B, IL6, CXCL3, CXCL5, CXCL6, CXCL2, CXCL16, and TNF, plus IRF9 and ICAM1 among genes also seen with flu. In this table, those are up, except CXCL16, which passes the adjusted p-value and stays under the 2-fold line.
+
+IFNB1, IFNL1, IFNL2, and IFNL3 are in the count file and are too rare to test. Total IFNB1 counts across all six dishes are 4. That agrees with "undetectable," and it is not a missing file.
+
+Some of our top genes, such as SAA1, SAA2, and IL36G, are not the names in that paragraph. That is not a fight with the paper. Their paragraph did not claim those were the only genes. They used their own alignment and software. A disagreement on one gene can come from the genome version, the count filter, or the 2-fold line. The table is results/paper_overlap.tsv.
+
+This is as far as the biology goes. Flu dishes and interferon-treated dishes exist in the same data set, as Series 9. They were left out so this project stays one question. You cannot say the interferon response is weak compared with flu.
+
+The comparison is scripts/07_paper_comparison.py. The names are typed from the paper's NHBE paragraph. They are not a copy of the paper's full supplement.
+
+  PAPER_UP = [
+      "CCL20", "CXCL1", "IL1B", "IL6", "CXCL3", "CXCL5",
+      "CXCL6", "CXCL2", "CXCL16", "TNF", "IRF9", "ICAM1",
+  ]
+  PAPER_QUIET = ["IFNB1", "IFNL1", "IFNL2", "IFNL3"]
+
+  PAPER_UP is the genes the paragraph calls induced. PAPER_QUIET is the interferon genes the paper calls hard to detect. The script scores these names. It does not go looking for extra agreements.
+
+  de = pd.read_csv(DE_PATH, sep="\t").set_index("gene")
+  counts = pd.read_csv("data/processed/nhbe_series1_counts.tsv.gz", sep="\t", index_col=0)
+
+  The Week 4 table, and the six-dish counts. Both are needed, because a gene can be missing from the test and still be present in the counts.
+
+For each name in the two lists, the script writes a paper claim, then looks the name up.
+
+  if gene in PAPER_UP:
+      paper_claim = "paper reports this gene induced in NHBE"
+  else:
+      paper_claim = "paper reports type I or III interferon undetectable in NHBE"
+
+  The sentence stored next to the gene. It records what the paper said, separately from what our table says.
+
+  if gene not in de.index:
+      if gene in counts.index:
+          our_call = "filtered_low_count"
+          agreement = "agree, too rare to test"
+      else:
+          our_call = "not_in_count_table"
+          agreement = "cannot score"
+
+  If Week 4 has no row for the gene, check the count table. Present but too rare: agree, too rare to test. That is the path for IFNB1, IFNL1, IFNL2, and IFNL3. Absent entirely: cannot score. CXCL8 would take that second path, and CXCL8 is not on the paper lists used here.
+
+  if gene in PAPER_UP and call == "up":
+      agreement = "agree, up"
+  elif gene in PAPER_UP and call == "fdr_only":
+      agreement = "same direction, below the 2-fold line"
+  elif gene in PAPER_UP and call == "not_significant":
+      agreement = "disagree, we do not call it changed"
+
+  Three endings for a gene the paper called induced. Up in our table: agree, up. Passed the adjusted p-value and stayed under 2-fold: same direction, below the 2-fold line. CXCL16 takes that middle path. A gene we do not call changed would be marked disagree. That last path was not used by these names.
+
+After the paper's names, the script adds our own top 20 so the table is not only the paper's list.
+
+  top20 = pd.read_csv("results/deseq2_results_significant.tsv", sep="\t").head(20)
+  paper_names = set(PAPER_UP + PAPER_QUIET)
+  for gene in top20["gene"]:
+      if gene in paper_names:
+          continue
+
+  Reads the headline table and takes the first 20 rows. Those rows are already sorted by adjusted p-value. paper_names is the combined paper list. If a top-20 gene is already on that list, continue skips it, because it was scored above. A new name is added with the claim "in our top 20, not one of the names in the NHBE paragraph" and the agreement "our result, paper did not highlight this name in the NHBE text." SAA1, SAA2, and IL36G are in that added set.
+  The whole table is written to results/paper_overlap.tsv.
+
+
+WEEKS 9 AND 10, SO A STRANGER CAN READ IT
+
+The code can be right and still fail if a reader cannot find the question. The README now goes in this order: the question, the six samples, what was done, the result in a few sentences, how to rerun it, the limits, and how to cite the original paper. One command runs the whole path:
+
+  python scripts/run_all.py
+
+CITATION.md says this is a reanalysis and gives the paper and the GEO link. LIMITATIONS.md says what this experiment cannot support. The license is MIT, which means someone can reuse the scripts. The original counts are still the authors' data, and they must be cited.
+
+The command works because scripts/run_all.py is a short list, run from the project folder. The file addresses inside the other scripts start with data/ and results/ and figures/. Those addresses make sense when the command is started in the project folder.
+
+  SCRIPTS = [
+      "scripts/00_download.py",
+      "scripts/01_subset_and_metadata.py",
+      "scripts/02_qc.py",
+      "scripts/03_de.py",
+      "scripts/04_gene_panel.py",
+      "scripts/05_pathways.py",
+      "scripts/06_figures.py",
+      "scripts/07_paper_comparison.py",
+      "scripts/08_sensitivity.py",
+  ]
+
+  The path, in order. Download, then the six dishes, then the pictures that check the dishes, then the test, then the twelve names, then the groups, then the gallery pictures, then the paper table, then the five-dish check. That last script refits the model, so the full run takes longer than the paper table alone.
+
+  for script in SCRIPTS:
+      print(f"\n========== {script} ==========")
+      subprocess.run([sys.executable, script], check=True)
+
+  Walks the list from top to bottom. For each name, it prints a banner, then runs that file with the same Python that is running this script. sys.executable is that Python. check=True means: if a script stops with an error, stop the whole run there. Later scripts would be reading files that this one failed to write.
+
+The README, CITATION.md, LIMITATIONS.md, and LICENSE are written for a person. They are not produced by a loop. LICENSE states the MIT terms and the copyright line for the scripts. The citation file points at Blanco-Melo et al., Cell 2020, PMID 32416070, and at GSE147507.
+
+
+WEEKS 11 AND 12, ONE EXTRA CHECK AND THEN STOP
+
+The deepest infected dish had about 29 million reads. Week 3 kept it because it sat with the other infected dishes. The last check asks whether the 12-gene calls change if that dish is removed.
+
+  IL6, TNF, MX1, and OAS1 stay up.
+  NFKBIA stays under the 2-fold line.
+  IFIT1 and IFIT3, which were already under 2-fold, no longer pass the adjusted p-value.
+
+So the headline does not depend on the deep dish. The borderline interferon genes do. With only two infected dishes left, the uncertainty estimate is shaky. That is why this file is a note, results/sensitivity_without_deep_library.tsv, and not a second main result.
+
+Nothing else is added. No single-cell data, no other cell line, and no new gene list after seeing the volcano.
+
+The script is scripts/08_sensitivity.py. run_all.py calls it last. It can also be run alone with python scripts/08_sensitivity.py.
+
+  DROP_SAMPLE = "Series1_NHBE_SARS-CoV-2_3"
+
+  The one dish to leave out. The name is the third infected dish, the deep library. It is written here so the choice is visible.
+
+  meta = meta[meta["sample_id"] != DROP_SAMPLE].copy()
+  counts = counts[list(meta["sample_id"])]
+
+  Keeps every sample-sheet row whose name is different from that dish. Five rows remain: three mock, two infected.
+  Then keeps only the count columns for those five names. The deep dish is gone from both tables, so the model cannot see it.
+
+  keep = (counts >= MIN_COUNT).sum(axis=1) >= MIN_SAMPLES
+  counts_for_model = counts.loc[keep].T.loc[meta["sample_id"]].astype(int)
+
+  The same 10-in-3 rule, now across five dishes. Three is still one full mock group. A gene that lived only in the dropped dish can fail here.
+  The table is flipped so each dish is a row, ordered like the five-row sheet, and stored as whole numbers.
+
+  dds = DeseqDataSet(
+      counts=counts_for_model,
+      metadata=model_meta,
+      design="~condition",
+      refit_cooks=False,
+      n_cpus=1,
+      quiet=True,
+  )
+  stats = DeseqStats(dds, contrast=["condition", "infected", "mock"], n_cpus=1, quiet=True)
+
+  The same model and the same comparison as Week 4. Mock is still the reference. Positive still means higher in the infected dishes that remain. With two infected dishes, PyDESeq2 warns that the noise estimate is on thin ice. That warning is why this file stays a note.
+
+The script then walks the twelve rows already stored in results/gene_panel.tsv. It does not build a new gene list.
+
+  if gene not in results.index:
+      if old_call == "not_in_count_table":
+          new_call = "not_in_count_table"
+      else:
+          new_call = "filtered_low_count"
+
+  If the five-dish test has no row for that gene, keep the old reason when the gene was never in the file. Otherwise call it filtered_low_count. IFNB1 stays too rare. CXCL8 stays absent. Neither one is reported as a new change.
+
+  elif padj < PADJ_CUTOFF and log2fc >= LFC_CUTOFF:
+      new_call = "up"
+  elif padj < PADJ_CUTOFF and log2fc <= -LFC_CUTOFF:
+      new_call = "down"
+  elif padj < PADJ_CUTOFF:
+      new_call = "fdr_only"
+  else:
+      new_call = "not_significant"
+
+  The same two cuts as Week 4, applied to the five-dish numbers. Up, then down, then adjusted-p-only, otherwise not significant.
+
+  same = "same" if new_call == old_call else "changed"
+
+  Compares the new label with the six-dish label. The word same or the word changed is stored in the column comparison. In this run, IL6, TNF, MX1, and OAS1 stay up. NFKBIA stays fdr_only. IFIT1 and IFIT3 change from fdr_only to not_significant. The table is results/sensitivity_without_deep_library.tsv.
+
+After this file, the project stops. No line in this script adds a cell line, a flu comparison, or a new gene name.
+
+
+THE SENTENCE FOR THE WHOLE PROJECT
+
+In six dishes of primary bronchial cells, 95 genes rose and 16 fell at least 2-fold after SARS-CoV-2, with the false-discovery cutoff at 0.05. IL6 and TNF are clearly induced. IFN-beta itself is not measurably expressed. A few antiviral genes, especially MX1 and OAS1, do rise, and the interferon group is real but not the top group. That matches Blanco-Melo et al. 2020 in this cell type: inflammation is the louder program.
+
+That sentence is carried by five files, each produced by the lines above.
+
+  results/deseq2_summary.tsv
+      12,291 tested, 95 up, 16 down, 314 under the 2-fold line. From scripts/03_de.py.
+
+  results/gene_panel.tsv
+      IL6 and TNF up, IFNB1 too rare, MX1 and OAS1 up. From scripts/04_gene_panel.py.
+
+  results/pathway_ora.tsv
+      TNF-alpha signaling through NF-kB at the top, interferon-alpha enriched and lower. From scripts/05_pathways.py.
+
+  results/paper_overlap.tsv
+      The paper's induced names agree, CXCL16 sits under the 2-fold line, and the interferon genes are too rare to test. From scripts/07_paper_comparison.py.
+
+  results/sensitivity_without_deep_library.tsv
+      The headline names stay put when the deep dish is removed. The borderline IFIT genes do not. From scripts/08_sensitivity.py, kept as a note.
