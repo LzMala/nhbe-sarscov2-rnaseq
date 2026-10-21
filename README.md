@@ -35,17 +35,45 @@ Counts: the author file `GSE147507_RawReadCounts_Human.tsv.gz`. Six columns only
 
 95 genes went up and 16 went down at adjusted p below 0.05 and at least a 2-fold change. IL6 and TNF are clearly up. IFN-beta (IFNB1) is too rare to test. MX1 and OAS1 are up, and several other interferon-stimulated genes are not. The strongest gene group among genes that rose is TNF-alpha signaling through NF-kB. Interferon-alpha response is enriched, and it is not the top group. This agrees with the paper's NHBE claim that inflammation is the louder program. It does not show that the response is weak compared with flu, because those samples were not included.
 
-## How to reproduce
+## Reproduce and run
 
-Start in this folder, not inside `scripts`.
+The commands below use the Miniconda environment named in `environment.yaml`. Start in this project folder. The scripts look for `data\`, `figures\`, and `results\` from here. Starting inside `scripts` writes a second copy of those folders.
+
+Create the environment once:
 
 ```powershell
-cd C:\Users\lzmah\GROK\nhbe-sarscov2-rnaseq
+conda env create -f environment.yaml
+conda activate nhbe-sarscov2
+```
+
+If the environment is already on the computer, skip the create line and activate it:
+
+```powershell
 conda activate nhbe-sarscov2
 python scripts/run_all.py
 ```
 
-A run worked when the terminal prints lines that start with `Saved`. The same command ends with the five-dish check. That check can also be repeated alone with `python scripts/08_sensitivity.py`.
+That one command runs the scripts in this order:
+
+1. `scripts/00_download.py` downloads the authors' count table. This step needs an internet connection.
+2. `scripts/01_subset_and_metadata.py` keeps the six Series 1 dishes and writes the sample sheet.
+3. `scripts/02_qc.py` checks sequencing depth, whether the dishes agree, and whether mock sits apart from infected.
+4. `scripts/03_de.py` tests each gene. This step takes a few minutes.
+5. `scripts/04_gene_panel.py` scores the 12 genes chosen before looking at the winners.
+6. `scripts/05_pathways.py` tests the named gene groups. This step needs an internet connection and can take several minutes.
+7. `scripts/06_figures.py` draws the volcano plot, the heatmap, and the pathway bars.
+8. `scripts/07_paper_comparison.py` scores the gene names from the paper's NHBE paragraph.
+9. `scripts/08_sensitivity.py` repeats the gene test without the deepest infected dish. This step takes a few minutes. It is a check, not a second main result.
+
+A run worked when each script prints lines that start with `Saved` and ends with `finished successfully`.
+
+To repeat one step, activate the same environment and run that file alone. Example:
+
+```powershell
+python scripts/04_gene_panel.py
+```
+
+The new files land in `data\processed\`, `figures\`, and `results\`.
 
 The four pictures to look at:
 
